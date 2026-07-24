@@ -26,7 +26,7 @@ EXPLOSION = "explosion"
 
 
 DEFAULT_AUDIO_THREAT_ALIASES: dict[str, tuple[str, ...]] = {
-    SCREAM: ("scream", "screaming", "yell", "shout"),
+    SCREAM: ("scream", "screaming"),
     GUNSHOT: ("gunshot", "gunfire"),
     GLASS_BREAK: ("glass", "glass breaking", "breaking glass", "shatter"),
     EXPLOSION: ("explosion", "blast"),

@@ -1,4 +1,5 @@
 import sys
+import argparse
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -37,6 +38,10 @@ def run_audio_capture(audio_detector, alert_manager):
         print(f"Audio capture failed (no mic?): {e}")
 
 def main():
+    parser = argparse.ArgumentParser(description="Run AI Surveillance Demo")
+    parser.add_argument("--source", action="append", default=[], help="Camera source (0 for webcam, or path to video file. Repeat for multiple.)")
+    args = parser.parse_args()
+    
     print("Initializing AI Surveillance System Demo...")
     
     alert_manager = AlertManager(config=AlertManagerConfig(alarm_enabled=True))
@@ -54,42 +59,43 @@ def main():
     
     camera_manager = CameraManager()
     
-    config = CameraSourceConfig(
-        camera_id="webcam-1",
-        source=0,
-        display_name="Live Webcam",
-        target_fps=20.0,
-    )
+    sources = args.source if args.source else ["0"]
     
-    print("Loading vision detectors...")
-    bag_detector = BagDetector(camera_id=config.camera_id)
-    
-    from security_ai_system.detectors.weapon_detector import DEFAULT_WEAPON_ALIASES
-    aliases = DEFAULT_WEAPON_ALIASES.copy()
-    aliases.update({
-        "scissors": "knife",
-        "fork": "knife",
-        "spoon": "knife",
-        "cell phone": "knife",
-        "toothbrush": "knife"
-    })
-    
-    # We map yolo_weapon_weights to the base yolov8n.pt to use its built-in 'knife' class for the demo
-    weapon_config = WeaponDetectorConfig(
-        model_paths=ModelPathConfig(yolo_weapon_weights=Path("models/yolov8n.pt")),
-        class_aliases=aliases
-    )
-    weapon_runtime = RuntimeConfig(confidence_threshold=0.15) # Very sensitive for demo
-    weapon_detector = WeaponDetector(camera_id=config.camera_id, runtime=weapon_runtime, config=weapon_config)
-    
-    camera_manager.add_camera(
-        config=config,
-        detectors=[bag_detector, weapon_detector]
-    )
+    for idx, src in enumerate(sources):
+        parsed_src = int(src) if str(src).isdigit() else src
+        from security_ai_system.cameras.camera_manager import infer_source_type
+        
+        config = CameraSourceConfig(
+            camera_id=f"camera-{idx+1}",
+            source=parsed_src,
+            source_type=infer_source_type(parsed_src),
+            display_name=f"Feed {idx+1}",
+            width=1280,
+            height=720,
+        )
+        
+        print(f"Loading vision detectors for {config.camera_id}...")
+        bag_detector = BagDetector(camera_id=config.camera_id)
+        
+        from security_ai_system.detectors.weapon_detector import DEFAULT_WEAPON_ALIASES
+        aliases = DEFAULT_WEAPON_ALIASES.copy()
+        
+        # We map yolo_weapon_weights to the base yolov8m.pt to use its built-in 'knife' class for the demo
+        weapon_config = WeaponDetectorConfig(
+            model_paths=ModelPathConfig(yolo_weapon_weights=Path("models/yolov8m.pt")),
+            class_aliases=aliases
+        )
+        weapon_runtime = RuntimeConfig(confidence_threshold=0.15) # Very sensitive for demo
+        weapon_detector = WeaponDetector(camera_id=config.camera_id, runtime=weapon_runtime, config=weapon_config)
+        
+        camera_manager.add_camera(
+            config=config,
+            detectors=[bag_detector, weapon_detector]
+        )
     
     print("Loading audio detector...")
     audio_config = AudioThreatDetectorConfig(
-        classifier_config=YamNetClassifierConfig(confidence_threshold=0.10)
+        classifier_config=YamNetClassifierConfig(confidence_threshold=0.35)
     )
     audio_detector = AudioThreatDetector(camera_id="microphone-1", config=audio_config)
     audio_detector.load()

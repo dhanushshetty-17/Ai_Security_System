@@ -146,8 +146,8 @@ class WeaponDetector(VisionDetector):
             processing_ms=(time.perf_counter() - started) * 1000,
         )
 
-    def _resolve_weapon_weights(self) -> Path:
-        """Return a validated local path to custom weapon weights."""
+    def _resolve_weapon_weights(self) -> Path | str:
+        """Return a validated local path to custom weapon weights or an official name for auto-download."""
 
         path = self.config.model_paths.yolo_weapon_weights
         if path is None:
@@ -157,13 +157,24 @@ class WeaponDetector(VisionDetector):
             )
 
         resolved = Path(path)
-        if not resolved.exists():
-            raise FileNotFoundError(f"Weapon model weights not found: {resolved}")
-        if resolved.suffix.lower() != ".pt":
-            raise ValueError(
-                f"Expected an Ultralytics YOLOv8 .pt model, got: {resolved.name}"
-            )
-        return resolved
+        if resolved.exists():
+            if resolved.suffix.lower() != ".pt":
+                raise ValueError(
+                    f"Expected an Ultralytics YOLOv8 .pt model, got: {resolved.name}"
+                )
+            return resolved
+            
+        official_names = {
+            "yolov8n.pt",
+            "yolov8s.pt",
+            "yolov8m.pt",
+            "yolov8l.pt",
+            "yolov8x.pt",
+        }
+        if resolved.name in official_names:
+            return resolved.name
+
+        raise FileNotFoundError(f"Weapon model weights not found: {resolved}")
 
     def _detect_weapons(self, frame: Any) -> list[Detection]:
         """Run YOLOv8 inference and convert weapon classes to detections."""
