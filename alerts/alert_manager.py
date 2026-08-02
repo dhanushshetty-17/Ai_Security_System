@@ -62,6 +62,9 @@ class AlertManager:
         self.output_dir = Path(self.config.output_dir)
         self.snapshot_dir = self.output_dir / self.config.snapshot_dir_name
         self.log_dir = self.output_dir / self.config.log_dir_name
+        
+        from security_ai_system.utils.genai_reporter import GenAIReporter
+        self.reporter = GenAIReporter(output_dir=str(self.output_dir / "reports"))
         self.jsonl_path = self.log_dir / self.config.jsonl_name
         self.csv_path = self.log_dir / self.config.csv_name
         self._last_event_at: dict[tuple[str, str], float] = {}
@@ -156,6 +159,16 @@ class AlertManager:
         snapshot_path = detection.metadata.get("snapshot_path")
         if snapshot_path is None and self.config.save_snapshots and frame is not None:
             snapshot_path = self._save_snapshot(frame, camera_id, detection.label, timestamp)
+            
+        if snapshot_path and score >= 30: # HIGH or CRITICAL
+            self.reporter.generate_report_async(
+                image_path=str(snapshot_path),
+                context={
+                    "camera_id": str(detection.metadata.get("camera_id", camera_id)),
+                    "label": detection.label,
+                    "severity": detection.severity.value,
+                }
+            )
 
         return AlertEvent(
             event_id=str(uuid.uuid4()),

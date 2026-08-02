@@ -65,6 +65,7 @@ class Detection:
     confidence: float
     bbox: BoundingBox | None = None
     track_id: int | str | None = None
+    global_id: str | None = None
     severity: Severity = Severity.INFO
     threat_score: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)

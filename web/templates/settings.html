@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - AI Smart Surveillance Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+        .form-group input[type="text"], .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.2);
+            color: white;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background-color: #1976d2;
+        }
+        .success-msg {
+            background-color: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar glass">
+            <div class="brand">NEXUS AI SECURITY</div>
+            <nav>
+                <a href="/dashboard" class="nav-link">Live Feeds</a>
+                <a href="#" class="nav-link">Analytics</a>
+                <a href="/settings" class="nav-link active">Settings</a>
+            </nav>
+            <div style="margin-top: auto;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    Operator: {{ username }}
+                </div>
+                <a href="/logout" class="nav-link" style="color: var(--danger);">Logout</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="header">
+                <h2>System Settings</h2>
+            </header>
+
+            <section class="events-panel glass settings-container">
+                {% if success %}
+                <div class="success-msg">Settings saved successfully!</div>
+                {% endif %}
+                
+                <form action="/settings" method="POST">
+                    <div class="form-group">
+                        <label for="gemini_api_key">Google Gemini API Key</label>
+                        <input type="password" id="gemini_api_key" name="gemini_api_key" value="{{ settings.get('gemini_api_key', '') }}" placeholder="AIzaSy...">
+                    </div>
+                    
+                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 2rem 0;">
+                    
+                    <h3 style="margin-bottom: 1rem;">System Alarms</h3>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 1rem;">
+                        <input type="checkbox" id="alarm_enabled" name="alarm_enabled" {% if settings.get('alarm_enabled', True) %}checked{% endif %} style="width: 20px; height: 20px;">
+                        <label for="alarm_enabled" style="margin: 0; cursor: pointer;">Enable System Beep (Windows only)</label>
+                    </div>
+
+                    <hr style="border: 1px solid rgba(255,255,255,0.1); margin: 2rem 0;">
+                    
+                    <h3 style="margin-bottom: 1rem;">Model Configuration</h3>
+                    
+                    <!-- Bag Detection -->
+                    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                        <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="bag_enabled" name="bag_enabled" {% if settings.get('bag_enabled', True) %}checked{% endif %} style="width: 20px; height: 20px;">
+                            <label for="bag_enabled" style="margin: 0; font-weight: bold; cursor: pointer;">Suspicious Bag Detection</label>
+                        </div>
+                        <div class="form-group" style="margin-left: 2.5rem; margin-bottom: 0;">
+                            <label for="bag_conf">Confidence Threshold (%)</label>
+                            <input type="number" id="bag_conf" name="bag_conf" min="0" max="100" value="{{ settings.get('bag_conf', 50) }}" style="width: 80px; padding: 0.5rem;">
+                        </div>
+                    </div>
+                    
+                    <!-- Weapon Detection -->
+                    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                        <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="weapon_enabled" name="weapon_enabled" {% if settings.get('weapon_enabled', True) %}checked{% endif %} style="width: 20px; height: 20px;">
+                            <label for="weapon_enabled" style="margin: 0; font-weight: bold; cursor: pointer;">Weapon Detection</label>
+                        </div>
+                        <div class="form-group" style="margin-left: 2.5rem; margin-bottom: 0;">
+                            <label for="weapon_conf">Confidence Threshold (%)</label>
+                            <input type="number" id="weapon_conf" name="weapon_conf" min="0" max="100" value="{{ settings.get('weapon_conf', 50) }}" style="width: 80px; padding: 0.5rem;">
+                        </div>
+                    </div>
+                    
+                    <!-- Behavior Detection -->
+                    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                        <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="behavior_enabled" name="behavior_enabled" {% if settings.get('behavior_enabled', True) %}checked{% endif %} style="width: 20px; height: 20px;">
+                            <label for="behavior_enabled" style="margin: 0; font-weight: bold; cursor: pointer;">Behavior Analysis (Fight/Fall)</label>
+                        </div>
+                        <div class="form-group" style="margin-left: 2.5rem; margin-bottom: 0;">
+                            <label for="behavior_conf">Confidence Threshold (%)</label>
+                            <input type="number" id="behavior_conf" name="behavior_conf" min="0" max="100" value="{{ settings.get('behavior_conf', 50) }}" style="width: 80px; padding: 0.5rem;">
+                        </div>
+                    </div>
+                    
+                    <!-- Audio Detection -->
+                    <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 6px; margin-bottom: 2rem;">
+                        <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                            <input type="checkbox" id="audio_enabled" name="audio_enabled" {% if settings.get('audio_enabled', True) %}checked{% endif %} style="width: 20px; height: 20px;">
+                            <label for="audio_enabled" style="margin: 0; font-weight: bold; cursor: pointer;">Audio Threat Detection</label>
+                        </div>
+                        <div class="form-group" style="margin-left: 2.5rem; margin-bottom: 0;">
+                            <label for="audio_conf">Confidence Threshold (%)</label>
+                            <input type="number" id="audio_conf" name="audio_conf" min="0" max="100" value="{{ settings.get('audio_conf', 35) }}" style="width: 80px; padding: 0.5rem;">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Save Settings</button>
+                </form>
+            </section>
+        </main>
+    </div>
+</body>
+</html>

@@ -27,3 +27,14 @@ streamlit>=1.20.0,<2
 pandas>=2.0.0,<3
 pillow
 moviepy>=1.0.0,<2
+# Web Dashboard
+fastapi
+uvicorn
+jinja2
+python-multipart
+pyjwt
+
+# ReID and GenAI
+google-generativeai
+python-dotenv
+scikit-learn

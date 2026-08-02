@@ -30,6 +30,7 @@ class TrackedObject:
     label: str
     bbox: BoundingBox
     confidence: float
+    global_id: str | None = None
 
 
 class DeepSortTracker:
@@ -40,10 +41,12 @@ class DeepSortTracker:
         max_age: int = 30,
         n_init: int = 2,
         max_cosine_distance: float = 0.4,
+        reid_manager: Any | None = None,
     ) -> None:
         self.max_age = max_age
         self.n_init = n_init
         self.max_cosine_distance = max_cosine_distance
+        self.reid_manager = reid_manager
         self._tracker: Any | None = None
 
     def load(self) -> None:
@@ -89,6 +92,8 @@ class DeepSortTracker:
 
         tracks = self._tracker.update_tracks(ds_detections, frame=frame)
         confirmed: list[TrackedObject] = []
+        
+        import numpy as np
 
         for track in tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
@@ -99,6 +104,11 @@ class DeepSortTracker:
             confidence = track.get_det_conf()
             if confidence is None:
                 confidence = 0.0
+                
+            global_id = None
+            if self.reid_manager is not None and len(track.features) > 0:
+                features_array = np.array(track.features)
+                global_id = self.reid_manager.assign_global_id(features_array)
 
             confirmed.append(
                 TrackedObject(
@@ -111,6 +121,7 @@ class DeepSortTracker:
                         int(bottom),
                     ),
                     confidence=float(confidence),
+                    global_id=global_id,
                 )
             )
 

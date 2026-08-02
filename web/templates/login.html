@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | AI Smart Surveillance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card glass">
+            <h2>Secure Authentication</h2>
+            
+            <script>
+                // Show error if URL has ?error=1
+                const urlParams = new URLSearchParams(window.location.search);
+                if(urlParams.has('error')) {
+                    document.write('<div class="error-msg">Invalid credentials. Access denied.</div>');
+                }
+            </script>
+
+            <form action="/login" method="POST">
+                <div class="form-group">
+                    <label for="username">Operator ID</label>
+                    <input type="text" id="username" name="username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Security Key</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="btn">INITIALIZE SYSTEM</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

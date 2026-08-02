@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Smart Surveillance Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar glass">
+            <div class="brand">NEXUS AI SECURITY</div>
+            <nav>
+                <a href="/dashboard" class="nav-link active">Live Feeds</a>
+                <a href="/settings" class="nav-link">Settings</a>
+            </nav>
+            <div style="margin-top: auto;">
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                    Operator: {{ username }}
+                </div>
+                <a href="/logout" class="nav-link" style="color: var(--danger);">Logout</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="header">
+                <h2>Command Center Overview</h2>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div style="font-size: 1rem; font-weight: bold; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                        System Status: <span id="overall-threat" class="badge LOW">LOW</span>
+                    </div>
+                    <div id="sys-health" style="display: flex; gap: 0.5rem; font-size: 0.85rem; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <span style="color: #4caf50;">CPU: <span id="cpu-usage">0</span>%</span>
+                        <span style="color: #2196f3;">RAM: <span id="ram-usage">0</span>%</span>
+                    </div>
+                    <button id="enable-audio-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        🔇 Enable Web Alarms
+                    </button>
+                    <form action="/api/add_source" method="POST" style="display: flex; gap: 0.5rem;">
+                        <input type="text" name="source" placeholder="Add Cam/Video (e.g. 1 or path)" style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: white;" required>
+                        <button type="submit" style="background: #2196f3; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Add Source</button>
+                    </form>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;" id="sys-time"></span>
+                </div>
+            </header>
+
+            <!-- Video Grid -->
+            <section class="camera-grid">
+                {% for cam in cameras %}
+                <div class="camera-card glass">
+                    <div class="camera-header">
+                        <div>
+                            <span class="status-indicator" id="status-{{ cam }}"></span>
+                            CAMERA {{ cam }}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);" id="fps-{{ cam }}">
+                            FPS: 0.0
+                        </div>
+                    </div>
+                    <div class="video-container">
+                        <img src="/video_feed/{{ cam }}" alt="Live Feed {{ cam }}">
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not cameras %}
+                <div class="glass" style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+                    No camera sources connected. Please restart system with --source arguments.
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- Analytics and Events Container -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+                <!-- Real-time Event Log -->
+                <section class="events-panel glass">
+                    <h3 style="margin-bottom: 1rem;">Recent Threat Activity</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        <table class="event-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Source</th>
+                                    <th>Detection Type</th>
+                                    <th>Threat Level</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-tbody">
+                                <!-- Populated dynamically via JS -->
+                                <tr><td colspan="4" style="text-align: center;">Waiting for event data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Threat Analytics Chart -->
+                <section class="events-panel glass">
+                    <h3 style="margin-bottom: 1rem;">Threat Analytics</h3>
+                    <canvas id="threatChart" height="200"></canvas>
+                </section>
+            </div>
+
+            <!-- GenAI Incident Reports -->
+            <section class="events-panel glass" style="margin-top: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3>AI Incident Reports</h3>
+                    <input type="text" id="report-search" placeholder="Smart Search... (e.g. 'red backpack')" style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: white; width: 300px;">
+                </div>
+                <div id="reports-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                    <!-- Populated dynamically via JS -->
+                    <div style="color: var(--text-secondary);">No reports generated yet. Trigger a threat to generate one.</div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Snapshot Modal -->
+    <div id="snapshot-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-card); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color); max-width: 800px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 id="modal-title">Threat Snapshot</h3>
+                <button onclick="document.getElementById('snapshot-modal').style.display='none'" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            <img id="modal-img" src="" alt="Snapshot" style="width: 100%; border-radius: 4px; display: none;">
+            <div id="modal-no-img" style="padding: 2rem; text-align: center; color: var(--text-secondary); display: none;">No snapshot image saved for this event.</div>
+        </div>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

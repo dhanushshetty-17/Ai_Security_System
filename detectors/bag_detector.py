@@ -335,6 +335,7 @@ class SuspiciousBagDetector(VisionDetector):
                     confidence=person.confidence,
                     bbox=person.bbox,
                     track_id=person.track_id,
+                    global_id=person.global_id,
                     metadata={"source_label": person.label},
                 )
             )
@@ -348,6 +349,7 @@ class SuspiciousBagDetector(VisionDetector):
                     confidence=bag.confidence,
                     bbox=bag.bbox,
                     track_id=bag.track_id,
+                    global_id=bag.global_id,
                     severity=Severity.HIGH if is_suspicious else Severity.INFO,
                     threat_score=40 if is_suspicious else 0,
                     metadata={
@@ -404,6 +406,7 @@ class SuspiciousBagDetector(VisionDetector):
                         confidence=status.bag.confidence,
                         bbox=status.bag.bbox,
                         track_id=status.bag.track_id,
+                        global_id=status.bag.global_id,
                         severity=Severity.HIGH,
                         threat_score=40,
                         metadata={
