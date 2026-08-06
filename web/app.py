@@ -36,7 +36,10 @@ def load_settings():
         "behavior_conf": 50,
         "audio_enabled": True,
         "audio_conf": 35,
-        "gemini_api_key": ""
+        "gemini_api_key": "",
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
+        "heatmap_enabled": True
     }
 
 def save_settings(settings):
@@ -65,6 +68,18 @@ async def root(request: Request):
 @app.on_event("startup")
 async def startup_event():
     app.state.settings = load_settings()
+    
+    # Initialize heatmap generator
+    from security_ai_system.utils.heatmap import HeatmapGenerator
+    app.state.heatmap_generator = HeatmapGenerator()
+    
+    # Initialize Telegram notifier
+    from security_ai_system.utils.telegram_notifier import TelegramNotifier
+    settings = app.state.settings
+    app.state.telegram_notifier = TelegramNotifier(
+        bot_token=settings.get("telegram_bot_token", ""),
+        chat_id=settings.get("telegram_chat_id", ""),
+    )
 
 @app.get("/settings", response_class=HTMLResponse)
 async def get_settings(request: Request, username: Optional[str] = Depends(get_current_user_optional)):
@@ -95,6 +110,9 @@ async def post_settings(request: Request, username: str = Depends(get_current_us
     settings["behavior_conf"] = int(form.get("behavior_conf", 50))
     settings["audio_enabled"] = form.get("audio_enabled") == "on"
     settings["audio_conf"] = int(form.get("audio_conf", 35))
+    settings["telegram_bot_token"] = form.get("telegram_bot_token", "")
+    settings["telegram_chat_id"] = form.get("telegram_chat_id", "")
+    settings["heatmap_enabled"] = form.get("heatmap_enabled") == "on"
     
     save_settings(settings)
     
@@ -103,6 +121,12 @@ async def post_settings(request: Request, username: str = Depends(get_current_us
         if not env_path.exists(): env_path.touch()
         set_key(str(env_path), "GEMINI_API_KEY", settings["gemini_api_key"])
         os.environ["GEMINI_API_KEY"] = settings["gemini_api_key"]
+        
+        # Reload reporter
+        alert_mgr = getattr(request.app.state, "alert_manager", None)
+        if alert_mgr:
+            from security_ai_system.utils.genai_reporter import GenAIReporter
+            alert_mgr.reporter = GenAIReporter(output_dir=str(alert_mgr.output_dir / "reports"))
         
     # Dynamically update the pipeline by turning models on or off
     manager: CameraManager = request.app.state.camera_manager
@@ -133,6 +157,19 @@ async def post_settings(request: Request, username: str = Depends(get_current_us
             confidence_threshold=settings["audio_conf"] / 100.0
         )
 
+    # Update Telegram notifier
+    telegram = getattr(request.app.state, "telegram_notifier", None)
+    if telegram:
+        telegram.bot_token = settings.get("telegram_bot_token", "")
+        telegram.chat_id = settings.get("telegram_chat_id", "")
+
+    # Update heatmap state
+    heatmap = getattr(request.app.state, "heatmap_generator", None)
+    if heatmap:
+        manager_h: CameraManager = request.app.state.camera_manager
+        for w in manager_h.workers():
+            heatmap.set_enabled(w.config.camera_id, settings.get("heatmap_enabled", True))
+
     return RedirectResponse(url="/settings?success=1", status_code=303)
 
 @app.post("/api/add_source")
@@ -143,6 +180,7 @@ async def add_source(request: Request, source: str = Form(...), username: str = 
     camera_id = f"camera-{cam_count + 1}"
     
     parsed_source = int(source) if str(source).isdigit() else source
+    source_type = infer_source_type(parsed_source)
     
     # We need to import the detectors and configure them just like in build_basic_camera_manager
     from security_ai_system.detectors.bag_detector import BagDetector
@@ -159,29 +197,43 @@ async def add_source(request: Request, source: str = Form(...), username: str = 
     
     bag_detector = BagDetector(camera_id=camera_id, tracker=tracker)
     
-    behavior_config = BehaviorDetectorConfig(
-        model_paths=ModelPathConfig(yolo_pose_weights=Path("models/yolov8m-pose.pt"))
-    )
-    behavior_detector = BehaviorDetector(camera_id=camera_id, config=behavior_config)
-    
     weapon_detector_config = WeaponDetectorConfig(
         model_paths=ModelPathConfig(yolo_weapon_weights=Path("models/yolov8m.pt"))
     )
     weapon_detector = WeaponDetector(camera_id=camera_id, config=weapon_detector_config)
     
+    detectors = [bag_detector, weapon_detector]
+    
+    from security_ai_system.cameras.camera_manager import CameraSourceType
+    if source_type != CameraSourceType.VIDEO_FILE:
+        behavior_config = BehaviorDetectorConfig(
+            model_paths=ModelPathConfig(yolo_pose_weights=Path("models/yolov8m-pose.pt"))
+        )
+        behavior_detector = BehaviorDetector(camera_id=camera_id, config=behavior_config)
+        detectors.append(behavior_detector)
+    
     config = CameraSourceConfig(
         camera_id=camera_id,
         source=parsed_source,
-        source_type=infer_source_type(parsed_source),
+        source_type=source_type,
         display_name=f"Camera {cam_count + 1}",
         target_fps=20.0,
     )
     
-    worker = manager.add_camera(config, detectors=[bag_detector, weapon_detector, behavior_detector])
-    worker._all_detectors = [bag_detector, weapon_detector, behavior_detector]
+    worker = manager.add_camera(config, detectors=detectors)
+    worker._all_detectors = detectors
     worker.start()
     
     return RedirectResponse(url="/dashboard", status_code=303)
+
+@app.post("/api/remove_source/{camera_id}")
+async def remove_source(camera_id: str, request: Request, username: str = Depends(get_current_user)):
+    manager: CameraManager = request.app.state.camera_manager
+    try:
+        manager.remove_camera(camera_id)
+        return JSONResponse(content={"ok": True})
+    except KeyError:
+        return JSONResponse(content={"ok": False, "error": "Camera not found"}, status_code=404)
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login(request: Request):
@@ -194,7 +246,7 @@ async def post_login(username: str = Form(...), password: str = Form(...)):
     if username == VALID_USERNAME and password == VALID_PASSWORD:
         token = create_access_token(data={"sub": username})
         response = RedirectResponse(url="/dashboard", status_code=303)
-        response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400)
+        response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400, samesite="lax")
         return response
     
     # Simple error fallback for demo
@@ -203,7 +255,7 @@ async def post_login(username: str = Form(...), password: str = Form(...)):
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("session_token")
+    response.delete_cookie("session_token", samesite="lax")
     return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -267,6 +319,37 @@ async def get_events(request: Request, username: str = Depends(get_current_user)
         "statuses": [{"camera_id": s.camera_id, "fps": round(s.fps, 1), "connected": s.connected} for s in statuses],
         "events": events[:10]  # top 10 latest
     })
+
+@app.post("/api/heatmap/toggle")
+async def toggle_heatmap(request: Request, username: str = Depends(get_current_user)):
+    """Toggle heatmap overlay on/off for all cameras."""
+    heatmap = getattr(request.app.state, "heatmap_generator", None)
+    if not heatmap:
+        return JSONResponse(content={"enabled": False})
+    
+    manager: CameraManager = request.app.state.camera_manager
+    # Toggle based on first camera's current state
+    workers = manager.workers()
+    if workers:
+        current = heatmap.is_enabled(workers[0].config.camera_id)
+        new_state = not current
+        for w in workers:
+            heatmap.set_enabled(w.config.camera_id, new_state)
+        # Persist
+        request.app.state.settings["heatmap_enabled"] = new_state
+        save_settings(request.app.state.settings)
+        return JSONResponse(content={"enabled": new_state})
+    return JSONResponse(content={"enabled": False})
+
+@app.post("/api/heatmap/reset")
+async def reset_heatmap(request: Request, username: str = Depends(get_current_user)):
+    """Reset heatmap accumulation data."""
+    heatmap = getattr(request.app.state, "heatmap_generator", None)
+    if heatmap:
+        manager: CameraManager = request.app.state.camera_manager
+        for w in manager.workers():
+            heatmap.reset(w.config.camera_id)
+    return JSONResponse(content={"ok": True})
 
 @app.get("/api/reports")
 async def get_reports(request: Request, username: str = Depends(get_current_user)):

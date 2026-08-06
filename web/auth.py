@@ -1,12 +1,16 @@
 import jwt
 import datetime
+import os
+from dotenv import load_dotenv
 from fastapi import HTTPException, Security, Request
 from fastapi.security import APIKeyCookie
 from pydantic import BaseModel
 from typing import Optional
 
+load_dotenv()
+
 # Security Configuration
-SECRET_KEY = "super-secret-ai-security-key-do-not-use-in-prod"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-ai-security-key-do-not-use-in-prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 
@@ -17,12 +21,12 @@ class LoginData(BaseModel):
     password: str
 
 # Hardcoded single user for MVP
-VALID_USERNAME = "admin"
-VALID_PASSWORD = "securepassword"
+VALID_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+VALID_PASSWORD = os.getenv("ADMIN_PASSWORD", "securepassword")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

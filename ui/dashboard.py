@@ -444,7 +444,7 @@ def run_dashboard(
 def build_basic_camera_manager(sources: list[str]) -> CameraManager:
     """Build a camera manager populated with vision detectors and ReID."""
 
-    from security_ai_system.cameras import CameraSourceConfig, infer_source_type
+    from security_ai_system.cameras import CameraSourceConfig, infer_source_type, CameraSourceType
     from security_ai_system.detectors.bag_detector import BagDetector
     from security_ai_system.detectors.weapon_detector import WeaponDetector, WeaponDetectorConfig
     from security_ai_system.detectors.behavior_detector import BehaviorDetector, BehaviorDetectorConfig
@@ -463,14 +463,11 @@ def build_basic_camera_manager(sources: list[str]) -> CameraManager:
         parsed_source: int | str = int(source) if str(source).isdigit() else source
         camera_id = f"camera-{idx}"
         
+        source_type = infer_source_type(parsed_source)
+        
         # Share the ReID manager across all camera trackers
         tracker = DeepSortTracker(reid_manager=reid_manager)
         bag_detector = BagDetector(camera_id=camera_id, tracker=tracker)
-        
-        behavior_config = BehaviorDetectorConfig(
-            model_paths=ModelPathConfig(yolo_pose_weights=Path("models/yolov8m-pose.pt"))
-        )
-        behavior_detector = BehaviorDetector(camera_id=camera_id, config=behavior_config)
         
         # Add WeaponDetector using the standard YOLOv8m model as a fallback for knife detection
         weapon_detector_config = WeaponDetectorConfig(
@@ -478,17 +475,26 @@ def build_basic_camera_manager(sources: list[str]) -> CameraManager:
         )
         weapon_detector = WeaponDetector(camera_id=camera_id, config=weapon_detector_config)
         
+        detectors = [bag_detector, weapon_detector]
+        
+        if source_type != CameraSourceType.VIDEO_FILE:
+            behavior_config = BehaviorDetectorConfig(
+                model_paths=ModelPathConfig(yolo_pose_weights=Path("models/yolov8m-pose.pt"))
+            )
+            behavior_detector = BehaviorDetector(camera_id=camera_id, config=behavior_config)
+            detectors.append(behavior_detector)
+        
         worker = manager.add_camera(
             CameraSourceConfig(
                 camera_id=camera_id,
                 source=parsed_source,
-                source_type=infer_source_type(parsed_source),
+                source_type=source_type,
                 display_name=f"Camera {idx}",
                 target_fps=20.0,
             ),
-            detectors=[bag_detector, weapon_detector, behavior_detector]
+            detectors=detectors
         )
-        worker._all_detectors = [bag_detector, weapon_detector, behavior_detector]
+        worker._all_detectors = detectors
     return manager
 
 

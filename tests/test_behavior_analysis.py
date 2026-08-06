@@ -48,10 +48,11 @@ class PoseAnalyzerTests(unittest.TestCase):
         self.assertEqual(analyzer.analyze_person(obs)[0].label, "FALL DETECTED")
 
     def test_torso_angle_is_fall_candidate(self) -> None:
-        analyzer = PoseAnalyzer(fall_torso_angle_deg=45.0)
+        analyzer = PoseAnalyzer(fall_torso_angle_deg=45.0, fall_aspect_ratio_threshold=1.5)
+        # Wide bbox (200w × 100h = ratio 2.0) combined with a steep torso angle
         obs = observation(
             "p1",
-            BoundingBox(10, 10, 130, 170),
+            BoundingBox(10, 10, 210, 110),
             {
                 LEFT_SHOULDER: Keypoint(30, 40, 0.9),
                 RIGHT_SHOULDER: Keypoint(40, 40, 0.9),

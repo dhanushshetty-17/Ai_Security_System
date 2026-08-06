@@ -69,10 +69,10 @@ class PoseAnalyzer:
     def __init__(
         self,
         min_keypoint_confidence: float = 0.25,
-        fall_aspect_ratio_threshold: float = 1.35,
+        fall_aspect_ratio_threshold: float = 1.6,
         fall_torso_angle_deg: float = 55.0,
-        fight_distance_px: float = 150.0,
-        wrist_to_body_distance_px: float = 65.0,
+        fight_distance_px: float = 280.0,
+        wrist_to_body_distance_px: float = 120.0,
     ) -> None:
         self.min_keypoint_confidence = min_keypoint_confidence
         self.fall_aspect_ratio_threshold = fall_aspect_ratio_threshold
@@ -116,16 +116,22 @@ class PoseAnalyzer:
         return findings_by_track
 
     def is_fall_candidate(self, observation: PoseObservation) -> bool:
-        """Return True when posture is strongly fall-like."""
+        """Return True when posture is strongly fall-like.
+
+        Both a wide bounding-box aspect ratio AND a steep torso angle
+        must be present to reduce false positives from sitting or
+        bending poses.
+        """
 
         bbox = observation.bbox
-        if bbox.height > 0 and bbox.width / bbox.height >= self.fall_aspect_ratio_threshold:
-            return True
+        wide_bbox = bbox.height > 0 and bbox.width / bbox.height >= self.fall_aspect_ratio_threshold
 
         shoulder = self._midpoint(observation, LEFT_SHOULDER, RIGHT_SHOULDER)
         hip = self._midpoint(observation, LEFT_HIP, RIGHT_HIP)
         if shoulder is None or hip is None:
-            return False
+            # Without keypoints we can only use the bbox — require a very
+            # extreme ratio (2.0+) to fire on bbox alone.
+            return wide_bbox and bbox.height > 0 and bbox.width / bbox.height >= 2.0
 
         dx = abs(shoulder[0] - hip[0])
         dy = abs(shoulder[1] - hip[1])
@@ -133,7 +139,10 @@ class PoseAnalyzer:
             return False
 
         angle_from_vertical = math.degrees(math.atan2(dx, dy))
-        return angle_from_vertical >= self.fall_torso_angle_deg
+        steep_torso = angle_from_vertical >= self.fall_torso_angle_deg
+
+        # Require both signals to fire together
+        return wide_bbox and steep_torso
 
     def is_fight_candidate(self, first: PoseObservation, second: PoseObservation) -> bool:
         """Return True when two poses show close aggressive-contact cues."""

@@ -5,7 +5,8 @@ import threading
 from pathlib import Path
 from dotenv import load_dotenv
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # Load environment variables (e.g. GEMINI_API_KEY)
 load_dotenv()
@@ -21,11 +22,10 @@ class GenAIReporter:
         
         self.api_key = os.getenv("GEMINI_API_KEY")
         if self.api_key and self.api_key != "your_google_gemini_api_key_here":
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('models/gemini-2.5-flash')
+            self.client = genai.Client(api_key=self.api_key)
             self.enabled = True
         else:
-            self.model = None
+            self.client = None
             self.enabled = False
 
     def generate_report_async(self, image_path: str, context: dict) -> None:
@@ -48,7 +48,7 @@ class GenAIReporter:
 
         try:
             # Upload the file to Gemini
-            sample_file = genai.upload_file(path=image_path)
+            sample_file = self.client.files.upload(file=image_path)
             
             prompt = (
                 "You are an expert AI police dispatcher and security analyst. "
@@ -59,7 +59,10 @@ class GenAIReporter:
                 "and recommended immediate actions. Do not use markdown formatting, just plain text."
             )
             
-            response = self.model.generate_content([sample_file, prompt])
+            response = self.client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[sample_file, prompt]
+            )
             
             report = {
                 "timestamp": time.time(),

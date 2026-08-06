@@ -66,6 +66,8 @@ class BehaviorDetector(VisionDetector):
             max_distance_px=self.config.track_match_distance_px
         )
         self._model: Any | None = None
+        self._alert_cooldowns: dict[tuple[str, str], float] = {}  # (track_id, label) -> last_alert_time
+        self._alert_cooldown_sec: float = 10.0
 
     def load(self) -> None:
         """Load YOLOv8 pose weights."""
@@ -222,6 +224,12 @@ class BehaviorDetector(VisionDetector):
         alerts: list[Detection] = []
         observations_by_id = {obs.track_id: obs for obs in observations}
 
+        # Expire stale cooldown entries
+        self._alert_cooldowns = {
+            key: t for key, t in self._alert_cooldowns.items()
+            if timestamp - t < self._alert_cooldown_sec * 3
+        }
+
         for track_id, findings in pose_findings.items():
             observation = observations_by_id.get(track_id)
             if observation is None:
@@ -251,7 +259,13 @@ class BehaviorDetector(VisionDetector):
                     },
                 )
                 detections.append(detection)
-                alerts.append(detection)
+
+                # Per-person per-label cooldown to suppress repeated alerts
+                cooldown_key = (track_id, finding.label)
+                last_alert = self._alert_cooldowns.get(cooldown_key, 0.0)
+                if timestamp - last_alert >= self._alert_cooldown_sec:
+                    alerts.append(detection)
+                    self._alert_cooldowns[cooldown_key] = timestamp
 
         return detections, alerts
 

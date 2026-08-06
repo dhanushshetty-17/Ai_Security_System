@@ -35,6 +35,7 @@ python-multipart
 pyjwt
 
 # ReID and GenAI
-google-generativeai
+google-genai>=0.1.0,<1.0
 python-dotenv
 scikit-learn
+psutil

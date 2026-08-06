@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Smart Surveillance Dashboard</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -15,6 +16,7 @@
             <div class="brand">NEXUS AI SECURITY</div>
             <nav>
                 <a href="/dashboard" class="nav-link active">Live Feeds</a>
+                <a href="#analytics-section" class="nav-link">Analytics</a>
                 <a href="/settings" class="nav-link">Settings</a>
             </nav>
             <div style="margin-top: auto;">
@@ -40,6 +42,12 @@
                     <button id="enable-audio-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
                         🔇 Enable Web Alarms
                     </button>
+                    <button id="heatmap-toggle-btn" style="background: rgba(59, 130, 246, 0.2); color: white; border: 1px solid #3b82f6; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        🔥 Heatmap ON
+                    </button>
+                    <button id="heatmap-reset-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border-color); padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;" title="Reset heatmap data">
+                        🗑️ Reset
+                    </button>
                     <form action="/api/add_source" method="POST" style="display: flex; gap: 0.5rem;">
                         <input type="text" name="source" placeholder="Add Cam/Video (e.g. 1 or path)" style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: white;" required>
                         <button type="submit" style="background: #2196f3; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Add Source</button>
@@ -52,17 +60,20 @@
             <section class="camera-grid">
                 {% for cam in cameras %}
                 <div class="camera-card glass">
-                    <div class="camera-header">
-                        <div>
+                    <div class="camera-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <span class="status-indicator" id="status-{{ cam }}"></span>
-                            CAMERA {{ cam }}
+                            <span>CAMERA {{ cam }}</span>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;" id="fps-{{ cam }}">FPS: 0.0</span>
                         </div>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);" id="fps-{{ cam }}">
-                            FPS: 0.0
-                        </div>
+                        <button onclick="stopCamera('{{ cam }}')" style="background: rgba(220, 38, 38, 0.2); color: #ef4444; border: 1px solid #ef4444; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;" title="Remove this camera">✖ Stop</button>
                     </div>
                     <div class="video-container">
-                        <img src="/video_feed/{{ cam }}" alt="Live Feed {{ cam }}">
+                        <div class="loading-overlay" id="loading-{{ cam }}">
+                            <div class="loading-pulse"></div>
+                            <span style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.85rem;">Initializing AI models...</span>
+                        </div>
+                        <img src="/video_feed/{{ cam }}" alt="Live Feed {{ cam }}" onload="document.getElementById('loading-{{ cam }}').style.display='none'">
                     </div>
                 </div>
                 {% endfor %}
@@ -74,7 +85,7 @@
             </section>
 
             <!-- Analytics and Events Container -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+            <div id="analytics-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
                 <!-- Real-time Event Log -->
                 <section class="events-panel glass">
                     <h3 style="margin-bottom: 1rem;">Recent Threat Activity</h3>
@@ -130,5 +141,59 @@
     </div>
     
     <script src="/static/js/main.js"></script>
+    <script>
+        // Heatmap and Camera control logic (inline to prevent browser caching issues)
+        document.addEventListener('DOMContentLoaded', () => {
+            const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
+            if (heatmapToggleBtn) {
+                heatmapToggleBtn.addEventListener('click', async (e) => {
+                    try {
+                        const res = await fetch('/api/heatmap/toggle', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.enabled) {
+                            e.target.textContent = '🔥 Heatmap ON';
+                            e.target.style.background = 'rgba(59, 130, 246, 0.2)';
+                            e.target.style.borderColor = '#3b82f6';
+                        } else {
+                            e.target.textContent = '⏸️ Heatmap OFF';
+                            e.target.style.background = 'rgba(255,255,255,0.1)';
+                            e.target.style.borderColor = 'var(--border-color)';
+                        }
+                    } catch (err) {
+                        console.error("Heatmap toggle failed", err);
+                    }
+                });
+            }
+
+            const heatmapResetBtn = document.getElementById('heatmap-reset-btn');
+            if (heatmapResetBtn) {
+                heatmapResetBtn.addEventListener('click', async () => {
+                    try {
+                        await fetch('/api/heatmap/reset', { method: 'POST' });
+                        const originalText = heatmapResetBtn.innerHTML;
+                        heatmapResetBtn.innerHTML = '✅ Cleared';
+                        setTimeout(() => { heatmapResetBtn.innerHTML = originalText; }, 1500);
+                    } catch (err) {
+                        console.error("Heatmap reset failed", err);
+                    }
+                });
+            }
+        });
+
+        async function stopCamera(cameraId) {
+            if (!confirm(`Are you sure you want to stop and remove ${cameraId}?`)) return;
+            try {
+                const res = await fetch(`/api/remove_source/${cameraId}`, { method: 'POST' });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to stop camera');
+                }
+            } catch (err) {
+                console.error("Failed to stop camera", err);
+                alert('Error stopping camera');
+            }
+        }
+    </script>
 </body>
 </html>

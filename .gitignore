@@ -8,8 +8,14 @@ _test_outputs/
 
 outputs/logs/*
 outputs/snapshots/*
+outputs/reports/*
+outputs/settings.json
 !outputs/snapshots/.gitkeep
 !outputs/logs/.gitkeep
+!outputs/reports/.gitkeep
+
+*.mp4
+*.avi
 
 models/*.pt
 models/*.onnx

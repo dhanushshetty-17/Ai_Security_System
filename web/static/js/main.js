@@ -6,26 +6,60 @@ function updateTime() {
 setInterval(updateTime, 1000);
 updateTime();
 
+// Security utility
+function escapeHtml(unsafe) {
+    return (unsafe || "").toString()
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+}
+
 // Audio Context for beep
 let audioCtx = null;
-let webAlarmsEnabled = false;
+let webAlarmsEnabled = localStorage.getItem('webAlarmsEnabled') === 'true';
 
-document.getElementById('enable-audio-btn').addEventListener('click', (e) => {
+if (webAlarmsEnabled) {
+    const btn = document.getElementById('enable-audio-btn');
+    if (btn) {
+        btn.textContent = '🔊 Web Alarms Enabled';
+        btn.style.background = 'rgba(76, 175, 80, 0.2)';
+        btn.style.borderColor = '#4caf50';
+    }
+}
+
+document.getElementById('enable-audio-btn')?.addEventListener('click', (e) => {
+    if (webAlarmsEnabled) {
+        webAlarmsEnabled = false;
+        localStorage.setItem('webAlarmsEnabled', 'false');
+        e.target.textContent = '🔇 Enable Web Alarms';
+        e.target.style.background = 'rgba(255,255,255,0.1)';
+        e.target.style.borderColor = 'var(--border-color)';
+    } else {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        webAlarmsEnabled = true;
+        localStorage.setItem('webAlarmsEnabled', 'true');
+        e.target.textContent = '🔊 Web Alarms Enabled';
+        e.target.style.background = 'rgba(76, 175, 80, 0.2)';
+        e.target.style.borderColor = '#4caf50';
+        playBeep(); // test beep
+    }
+});
+
+function playBeep() {
+    if (!webAlarmsEnabled) return;
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().catch(e => console.log(e));
     }
-    webAlarmsEnabled = true;
-    e.target.textContent = '🔊 Web Alarms Enabled';
-    e.target.style.background = 'rgba(76, 175, 80, 0.2)';
-    e.target.style.borderColor = '#4caf50';
-    playBeep(); // test beep
-});
-
-function playBeep() {
-    if (!webAlarmsEnabled || !audioCtx) return;
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     oscillator.connect(gainNode);
@@ -155,8 +189,8 @@ async function pollData() {
                 
                 tr.innerHTML = `
                     <td>${date.toLocaleTimeString()}</td>
-                    <td>${evt.camera_id}</td>
-                    <td>${evt.label}</td>
+                    <td>${escapeHtml(evt.camera_id)}</td>
+                    <td>${escapeHtml(evt.label)}</td>
                     <td>${badge}</td>
                 `;
                 tbody.appendChild(tr);
@@ -202,9 +236,9 @@ async function fetchReports(query = "") {
             
             card.innerHTML = `
                 ${imgHtml}
-                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">${date} • ${r.camera_id}</div>
-                <h4 style="margin-bottom: 0.5rem; color: #ffeb3b;">${r.threat_label}</h4>
-                <p style="font-size: 0.9rem; line-height: 1.4; color: #e2e8f0; white-space: pre-wrap;">${r.ai_summary}</p>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">${date} • ${escapeHtml(r.camera_id)}</div>
+                <h4 style="margin-bottom: 0.5rem; color: #ffeb3b;">${escapeHtml(r.threat_label)}</h4>
+                <p style="font-size: 0.9rem; line-height: 1.4; color: #e2e8f0; white-space: pre-wrap;">${escapeHtml(r.ai_summary)}</p>
             `;
             container.appendChild(card);
         });
@@ -226,3 +260,39 @@ pollData();
 // Fetch reports less frequently
 setInterval(() => fetchReports(document.getElementById('report-search').value), 10000);
 fetchReports();
+
+// Heatmap controls
+const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
+if (heatmapToggleBtn) {
+    heatmapToggleBtn.addEventListener('click', async (e) => {
+        try {
+            const res = await fetch('/api/heatmap/toggle', { method: 'POST' });
+            const data = await res.json();
+            if (data.enabled) {
+                e.target.textContent = '🔥 Heatmap ON';
+                e.target.style.background = 'rgba(59, 130, 246, 0.2)';
+                e.target.style.borderColor = '#3b82f6';
+            } else {
+                e.target.textContent = '⏸️ Heatmap OFF';
+                e.target.style.background = 'rgba(255,255,255,0.1)';
+                e.target.style.borderColor = 'var(--border-color)';
+            }
+        } catch (err) {
+            console.error("Heatmap toggle failed", err);
+        }
+    });
+}
+
+const heatmapResetBtn = document.getElementById('heatmap-reset-btn');
+if (heatmapResetBtn) {
+    heatmapResetBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/heatmap/reset', { method: 'POST' });
+            const originalText = heatmapResetBtn.innerHTML;
+            heatmapResetBtn.innerHTML = '✅ Cleared';
+            setTimeout(() => { heatmapResetBtn.innerHTML = originalText; }, 1500);
+        } catch (err) {
+            console.error("Heatmap reset failed", err);
+        }
+    });
+}

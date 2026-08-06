@@ -42,6 +42,13 @@ security_ai_system/
 |-- ui/
 |   |-- __init__.py
 |   `-- dashboard.py
+|-- web/
+|   |-- __init__.py
+|   |-- app.py
+|   |-- auth.py
+|   |-- streamer.py
+|   |-- templates/
+|   `-- static/
 |-- utils/
 |   |-- __init__.py
 |   |-- drawing.py
@@ -196,6 +203,11 @@ python -m unittest tests.test_dashboard_helpers
    multi-camera grid, live frame rendering, FPS/status display, threat score,
    active alert count, event history table, and start/stop controls.
 
+9. Web dashboard (FastAPI):
+   Web-based secure interface with JWT authentication, MJPEG streaming, real-time threat
+   polling, settings toggles (for AI models/heatmap), system health monitor,
+   and Gemini Vision GenAI police-style incident reports with search capabilities.
+
 ## Planned Modules
 
 All requested core modules are now implemented. Remaining work is integration
@@ -214,10 +226,16 @@ The finished demo will support:
 - event history;
 - saved snapshots and logs.
 
-Quick dashboard demo:
+Quick desktop dashboard demo:
 
 ```powershell
 python main.py --dashboard --source 0
+```
+
+Web dashboard demo (Recommended):
+
+```powershell
+python main.py --web --source 0
 ```
 
 ## Important Model Note

@@ -89,10 +89,10 @@ class MotionAnalyzer:
 
     def __init__(
         self,
-        running_speed_px_per_sec: float = 260.0,
+        running_speed_px_per_sec: float = 450.0,
         loitering_radius_px: float = 70.0,
-        loitering_duration_sec: float = 30.0,
-        suspicious_direction_changes: int = 4,
+        loitering_duration_sec: float = 120.0,
+        suspicious_direction_changes: int = 8,
         panic_min_people: int = 3,
         panic_running_ratio: float = 0.6,
         stale_after_sec: float = 5.0,

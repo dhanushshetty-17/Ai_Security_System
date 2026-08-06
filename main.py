@@ -108,6 +108,18 @@ def main(argv: list[str] | None = None) -> int:
                                 alert_manager._audio_event_queue.clear()
                         else:
                             alert_manager._audio_event_queue.clear()
+                        
+                        # Send Telegram notifications for high-priority events
+                        telegram = getattr(app.state, "telegram_notifier", None)
+                        if telegram and telegram.enabled:
+                            for evt in events:
+                                if evt.threat_level in ("HIGH", "CRITICAL"):
+                                    telegram.send_alert(
+                                        camera_id=evt.camera_id,
+                                        label=evt.label,
+                                        threat_level=evt.threat_level,
+                                        snapshot_path=evt.snapshot_path,
+                                    )
                 time.sleep(0.1)
 
         polling_thread = threading.Thread(target=poll_video_alerts, daemon=True)

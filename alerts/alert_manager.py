@@ -26,7 +26,7 @@ class AlertManagerConfig:
     jsonl_name: str = "threat_events.jsonl"
     csv_name: str = "threat_events.csv"
     save_snapshots: bool = True
-    event_cooldown_sec: float = 1.0
+    event_cooldown_sec: float = 5.0
     alarm_enabled: bool = False
 
 
